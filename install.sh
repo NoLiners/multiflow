@@ -48,7 +48,7 @@ fi
 
 echo "📥 Clone repository..."
 git clone https://github.com/NoLiners/multiflow
-cd streamflow
+cd multiflow
 
 echo "⚙️ Installing dependencies..."
 npm install
