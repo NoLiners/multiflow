@@ -50,10 +50,10 @@ echo "📥 Clone repository..."
 # Cek jika folder sudah ada agar tidak error saat clone
 if [ -d "streamflow" ]; then
     echo "Folder streamflow sudah ada, masuk ke direktori..."
-    cd streamflow
+    cd multiflow
 else
-    git clone https://github.com/bangtutorial/streamflow
-    cd streamflow
+    git clone https://github.com/NoLiners/multiflow
+    cd multiflow
 fi
 
 # --- BAGIAN 3: SETUP HLS STORAGE (TAMBAHAN PENTING) ---
