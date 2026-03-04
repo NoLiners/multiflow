@@ -3,7 +3,7 @@
 set -e
 
 echo "================================================"
-echo "   StreamFlow Installer (Original + HLS Fix)    "
+echo "   StreamFlow Installer (Original + HLS + FIX)  "
 echo "================================================"
 echo
 
@@ -14,7 +14,7 @@ echo
 echo "🔄 Updating sistem..."
 sudo apt update && sudo apt upgrade -y
 
-# --- BAGIAN 1: INSTALL ENGINE (NODE & FFMPEG) ---
+# 1. Check dan install Node.js (minimal v18)
 if command -v node &> /dev/null; then
     NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
     if [ "$NODE_VERSION" -ge 18 ]; then
@@ -30,14 +30,15 @@ else
     sudo apt-get install -y nodejs
 fi
 
-# TAMBAHAN: Install FFmpeg untuk HLS
+# 2. Check dan install FFmpeg (Wajib untuk HLS)
 if command -v ffmpeg &> /dev/null; then
     echo "✅ FFmpeg sudah terinstall, skip..."
 else
-    echo "🎬 Installing FFmpeg (Wajib untuk HLS)..."
+    echo "🎬 Installing FFmpeg..."
     sudo apt install ffmpeg -y
 fi
 
+# 3. Check dan install Git
 if command -v git &> /dev/null; then
     echo "✅ Git sudah terinstall, skip..."
 else
@@ -45,41 +46,42 @@ else
     sudo apt install git -y
 fi
 
-# --- BAGIAN 2: SETUP REPOSITORY ---
 echo "📥 Clone repository..."
-# Cek jika folder sudah ada agar tidak error saat clone
+# Menangani jika folder multiflow sudah ada agar tidak error
 if [ -d "streamflow" ]; then
-    echo "Folder streamflow sudah ada, masuk ke direktori..."
-    cd multiflow
+    cd streamflow
 else
     git clone https://github.com/NoLiners/multiflow
-    cd multiflow
+    cd streamflow
 fi
 
-# --- BAGIAN 3: SETUP HLS STORAGE (TAMBAHAN PENTING) ---
-echo "📁 Menyiapkan folder storage HLS..."
+# --- TAMBAHAN HLS STORAGE ---
+echo "📁 Setup folder penyimpanan HLS..."
 mkdir -p public/live
 sudo chmod -R 777 public/live
 
-# --- BAGIAN 4: DEPENDENCIES ---
 echo "⚙️ Installing dependencies..."
 npm install
-# Tambahkan library pendukung streaming secara otomatis
 npm install node-media-server crypto ejs-mate --save
+
+# --- FIX: PATCH UNTUK ERROR 'version is not defined' ---
+echo "🛠️ Patching node-media-server error..."
+# Perintah ini memperbaiki bug 'version is not defined' langsung di node_modules
+sed -i "s/version: version/version: '2.1.0'/g" node_modules/node-media-server/src/node_trans_server.js || echo "Patch failed, manual check needed."
+
 npm run generate-secret
 
 echo "🕐 Setup timezone ke Asia/Jakarta..."
 sudo timedatectl set-timezone Asia/Jakarta
 
-# --- BAGIAN 5: FIREWALL (TAMBAHAN PORT STREAMING) ---
-echo "🔧 Setup firewall..."
+echo "🔧 Setup firewall (Web, RTMP, HLS)..."
 sudo ufw allow ssh
-sudo ufw allow 7575/tcp # Port Web
-sudo ufw allow 1935/tcp # Port RTMP (OBS)
-sudo ufw allow 8000/tcp # Port HLS (Player)
+sudo ufw allow 7575/tcp
+sudo ufw allow 1935/tcp
+sudo ufw allow 8000/tcp
 sudo ufw --force enable
 
-# --- BAGIAN 6: RUNNING ---
+# Check dan install PM2
 if command -v pm2 &> /dev/null; then
     echo "✅ PM2 sudah terinstall, skip..."
 else
@@ -88,19 +90,17 @@ else
 fi
 
 echo "▶️ Starting StreamFlow..."
-# Pastikan proses lama dimatikan sebelum mulai baru
 pm2 delete streamflow || true
 pm2 start app.js --name streamflow
 pm2 save
 
 echo
-echo "================================================"
+echo "================================"
 echo "✅ INSTALASI SELESAI!"
-echo "================================================"
+echo "================================"
 
 SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || echo "IP_SERVER")
 echo
-echo "🌐 URL Akses Dashboard : http://$SERVER_IP:7575"
-echo "📺 Ingest RTMP (OBS)  : rtmp://$SERVER_IP/live"
-echo "🎬 Playback HLS Port  : 8000"
-echo "================================================"
+echo "🌐 Dashboard: http://$SERVER_IP:7575"
+echo "📺 RTMP Ingest: rtmp://$SERVER_IP/live"
+echo "================================"
