@@ -3,7 +3,7 @@
 set -e
 
 echo "================================================"
-echo "   StreamFlow Installer (Original + HLS + FIX)  "
+echo "   multiflow Installer (Original + HLS + FIX)  "
 echo "================================================"
 echo
 
@@ -48,11 +48,11 @@ fi
 
 echo "📥 Clone repository..."
 # Menangani jika folder multiflow sudah ada agar tidak error
-if [ -d "streamflow" ]; then
-    cd streamflow
+if [ -d "multiflow" ]; then
+    cd multiflow
 else
     git clone https://github.com/NoLiners/multiflow
-    cd streamflow
+    cd multiflow
 fi
 
 # --- TAMBAHAN HLS STORAGE ---
@@ -89,9 +89,9 @@ else
     sudo npm install -g pm2
 fi
 
-echo "▶️ Starting StreamFlow..."
-pm2 delete streamflow || true
-pm2 start app.js --name streamflow
+echo "▶️ Starting multiflow..."
+pm2 delete multiflow || true
+pm2 start app.js --name multiflow
 pm2 save
 
 echo
