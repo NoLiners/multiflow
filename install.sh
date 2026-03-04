@@ -3,104 +3,64 @@
 set -e
 
 echo "================================================"
-echo "   multiflow Installer (Original + HLS + FIX)  "
+echo "   MultiFlow Installer (Node 22 + HLS FIX)      "
 echo "================================================"
-echo
-
-read -p "Mulai instalasi? (y/n): " -n 1 -r
-echo
-[[ ! $REPLY =~ ^[Yy]$ ]] && echo "Instalasi dibatalkan." && exit 1
 
 echo "🔄 Updating sistem..."
 sudo apt update && sudo apt upgrade -y
 
-# 1. Check dan install Node.js (minimal v18)
-if command -v node &> /dev/null; then
-    NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-    if [ "$NODE_VERSION" -ge 18 ]; then
-        echo "✅ Node.js sudah terinstall ($(node -v)), skip..."
-    else
-        echo "⚠️ Node.js versi $(node -v) terlalu lama, upgrade ke v18..."
-        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-        sudo apt-get install -y nodejs
-    fi
-else
-    echo "📦 Installing Node.js v18..."
-    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-    sudo apt-get install -y nodejs
-fi
+# 1. Install Node.js v22 (LTS Terbaru) agar support library @tus
+echo "📦 Installing Node.js v22..."
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs ffmpeg git build-essential
 
-# 2. Check dan install FFmpeg (Wajib untuk HLS)
-if command -v ffmpeg &> /dev/null; then
-    echo "✅ FFmpeg sudah terinstall, skip..."
-else
-    echo "🎬 Installing FFmpeg..."
-    sudo apt install ffmpeg -y
-fi
-
-# 3. Check dan install Git
-if command -v git &> /dev/null; then
-    echo "✅ Git sudah terinstall, skip..."
-else
-    echo "🎬 Installing Git..."
-    sudo apt install git -y
-fi
-
-echo "📥 Clone repository..."
-# Menangani jika folder multiflow sudah ada agar tidak error
-if [ -d "multiflow" ]; then
-    cd multiflow
-else
-    git clone https://github.com/NoLiners/multiflow
-    cd multiflow
-fi
-
-# --- TAMBAHAN HLS STORAGE ---
-echo "📁 Setup folder penyimpanan HLS..."
+# 2. Setup Folder HLS (Penting untuk Dashboard)
+echo "📁 Setting up storage..."
 mkdir -p public/live
 sudo chmod -R 777 public/live
 
+# 3. Setup Project (Jika dijalankan di luar folder project)
+if [ ! -f "package.json" ]; then
+    echo "📥 Cloning MultiFlow..."
+    git clone https://github.com/NoLiners/multiflow.git .
+fi
+
+# 4. Install Dependencies
 echo "⚙️ Installing dependencies..."
-npm install
+# Menggunakan --force atau --legacy-peer-deps jika ada konflik versi engine lama
+npm install --force
 npm install node-media-server crypto ejs-mate --save
 
-# --- FIX: PATCH UNTUK ERROR 'version is not defined' ---
-echo "🛠️ Patching node-media-server error..."
-# Perintah ini memperbaiki bug 'version is not defined' langsung di node_modules
-sed -i "s/version: version/version: '2.1.0'/g" node_modules/node-media-server/src/node_trans_server.js || echo "Patch failed, manual check needed."
+# 5. FIX: 'version is not defined' pada Node Media Server
+echo "🛠️ Patching node-media-server..."
+if [ -f "node_modules/node-media-server/src/node_trans_server.js" ]; then
+    sed -i "s/version: version/version: '2.1.0'/g" node_modules/node-media-server/src/node_trans_server.js
+fi
 
-npm run generate-secret
-
-echo "🕐 Setup timezone ke Asia/Jakarta..."
+# 6. Config Asli StreamFlow
+echo "🔑 Generating secret & setting timezone..."
+npm run generate-secret || true
 sudo timedatectl set-timezone Asia/Jakarta
 
-echo "🔧 Setup firewall (Web, RTMP, HLS)..."
+# 7. Firewall (Membuka Web, RTMP, HLS)
+echo "🔧 Configuring firewall..."
 sudo ufw allow ssh
 sudo ufw allow 7575/tcp
 sudo ufw allow 1935/tcp
 sudo ufw allow 8000/tcp
 sudo ufw --force enable
 
-# Check dan install PM2
-if command -v pm2 &> /dev/null; then
-    echo "✅ PM2 sudah terinstall, skip..."
-else
-    echo "🚀 Installing PM2..."
-    sudo npm install -g pm2
-fi
-
-echo "▶️ Starting multiflow..."
+# 8. Start PM2
+echo "🚀 Starting with PM2..."
+sudo npm install -g pm2
 pm2 delete multiflow || true
 pm2 start app.js --name multiflow
 pm2 save
 
 echo
-echo "================================"
-echo "✅ INSTALASI SELESAI!"
-echo "================================"
-
+echo "================================================"
+echo "✅ INSTALASI SELESAI DENGAN NODE 22!"
+echo "================================================"
 SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || echo "IP_SERVER")
-echo
 echo "🌐 Dashboard: http://$SERVER_IP:7575"
-echo "📺 RTMP Ingest: rtmp://$SERVER_IP/live"
-echo "================================"
+echo "================================================"
