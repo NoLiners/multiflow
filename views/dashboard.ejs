@@ -1,0 +1,113 @@
+<div class="flex flex-wrap -mx-3">
+  <div class="w-full max-w-full px-3 mb-6 sm:w-1/2 sm:flex-none xl:mb-0 xl:w-1/4">
+    <div class="relative flex flex-col min-w-0 break-words bg-white shadow-soft-xl rounded-2xl bg-clip-border">
+      <div class="flex-auto p-4">
+        <div class="flex flex-row -mx-3">
+          <div class="flex-none w-2/3 max-w-full px-3">
+            <div>
+              <p class="mb-0 font-sans font-semibold leading-normal text-sm">Active Streams</p>
+              <h5 class="mb-0 font-bold">
+                <%= activeStreams.length %>
+                <span class="leading-normal text-sm font-weight-bolder text-lime-500">Live</span>
+              </h5>
+            </div>
+          </div>
+          <div class="px-3 text-right basis-1/3">
+            <div class="inline-block w-12 h-12 text-center rounded-lg bg-gradient-to-tl from-purple-700 to-pink-500 shadow-soft-2xl">
+              <i class="ni ni-tv-2 text-lg relative top-3.5 text-white"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flex flex-wrap mt-6 -mx-3">
+  <div class="w-full px-3 mb-6">
+    <div class="relative flex flex-col min-w-0 break-words bg-white shadow-soft-xl rounded-2xl bg-clip-border p-4">
+      <div class="flex justify-between items-center mb-4">
+        <h6 class="font-bold">Live Monitor</h6>
+        <form action="/generate-stream" method="POST">
+          <button type="submit" class="inline-block px-6 py-3 font-bold text-center text-white uppercase align-middle transition-all bg-transparent border-0 rounded-lg cursor-pointer shadow-soft-md bg-x-25 bg-150 leading-pro text-xs ease-soft-in tracking-tight-soft bg-gradient-to-tl from-blue-600 to-cyan-400 hover:scale-102 active:opacity-85">
+            Generate New Key
+          </button>
+        </form>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <% if (activeStreams.length > 0) { %>
+          <% activeStreams.forEach(active => { %>
+            <div class="overflow-hidden rounded-xl border border-gray-200">
+              <video id="player-<%= active.key %>" class="w-full aspect-video bg-black" controls autoplay muted></video>
+              <div class="p-2 bg-gray-50 text-xs font-mono flex justify-between">
+                <span>Key: <%= active.key %></span>
+                <button onclick="copy('http://<%= serverIp %>:8000/live/<%= active.key %>/index.m3u8')" class="text-blue-500">Copy HLS</button>
+              </div>
+            </div>
+            <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+            <script>
+              if (Hls.isSupported()) {
+                var video = document.getElementById('player-<%= active.key %>');
+                var hls = new Hls();
+                hls.loadSource('http://' + window.location.hostname + ':8000/live/<%= active.key %>/index.m3u8');
+                hls.attachMedia(video);
+              }
+            </script>
+          <% }) %>
+        <% } else { %>
+          <div class="col-span-2 text-center py-10 text-gray-400 italic">
+            Belum ada stream yang aktif...
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flex flex-wrap mt-6 -mx-3">
+  <div class="w-full px-3">
+    <div class="relative flex flex-col min-w-0 break-words bg-white shadow-soft-xl rounded-2xl bg-clip-border">
+      <div class="p-6 pb-0 mb-0 bg-white rounded-t-2xl">
+        <h6>Stream Credentials</h6>
+      </div>
+      <div class="flex-auto px-0 pt-0 pb-2">
+        <div class="p-0 overflow-x-auto">
+          <table class="items-center w-full mb-0 align-top border-gray-200 text-slate-500">
+            <thead class="align-bottom text-xs font-bold uppercase text-slate-400 opacity-70">
+              <tr>
+                <th class="px-6 py-3 text-left">RTMP Server</th>
+                <th class="px-6 py-3 text-left">Stream Key</th>
+                <th class="px-6 py-3 text-center">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% createdStreams.forEach(stream => { %>
+              <tr>
+                <td class="px-6 py-3 align-middle bg-transparent border-b whitespace-nowrap">
+                  <div class="flex items-center">
+                    <span class="text-xs font-semibold leading-tight text-blue-500">rtmp://<%= serverIp %>/live</span>
+                  </div>
+                </td>
+                <td class="px-6 py-3 align-middle bg-transparent border-b whitespace-nowrap">
+                  <span class="text-xs font-semibold leading-tight text-emerald-500"><%= stream.key %></span>
+                </td>
+                <td class="px-6 py-3 text-center align-middle bg-transparent border-b whitespace-nowrap">
+                  <span class="text-xs font-semibold leading-tight text-slate-400"><%= stream.createdAt %></span>
+                </td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function copy(text) {
+    navigator.clipboard.writeText(text);
+    alert('URL HLS disalin!');
+  }
+</script>

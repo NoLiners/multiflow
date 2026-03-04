@@ -1,0 +1,88 @@
+<div class="container mx-auto p-6 bg-gray-900 min-h-screen text-white">
+    
+    <div class="flex justify-between items-center mb-10">
+        <h1 class="text-3xl font-bold border-l-4 border-blue-500 pl-4">Streamflow Control Panel</h1>
+        <form action="/generate-stream" method="POST">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg flex items-center gap-2 transition">
+                <i data-lucide="plus-circle"></i> Buat Stream Baru
+            </button>
+        </form>
+    </div>
+
+    <section class="mb-12">
+        <h2 class="text-xl font-semibold mb-4 text-gray-400">Daftar Konfigurasi Stream</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <% createdStreams.forEach(stream => { %>
+                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-sm">
+                    <div class="flex justify-between mb-3">
+                        <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300">Offline</span>
+                        <span class="text-xs text-gray-500"><%= stream.createdAt %></span>
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-[10px] text-gray-500 uppercase">RTMP Server URL</label>
+                            <div class="flex mt-1">
+                                <input type="text" readonly value="<%= stream.rtmpUrl %>" id="url-<%= stream.key %>" class="w-full bg-black text-xs p-2 rounded-l border-none">
+                                <button onclick="copy('url-<%= stream.key %>')" class="bg-gray-700 px-3 rounded-r"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-500 uppercase">Stream Key</label>
+                            <div class="flex mt-1">
+                                <input type="password" readonly value="<%= stream.key %>" id="key-<%= stream.key %>" class="w-full bg-black text-xs p-2 rounded-l border-none">
+                                <button onclick="toggleKey('key-<%= stream.key %>')" class="bg-gray-700 px-3"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                                <button onclick="copy('key-<%= stream.key %>')" class="bg-gray-700 px-3 rounded-r"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <% }) %>
+        </div>
+    </section>
+
+    <hr class="border-gray-800 mb-12">
+
+    <section>
+        <h2 class="text-xl font-semibold mb-4 text-red-500 flex items-center gap-2">
+            <span class="w-3 h-3 bg-red-500 rounded-full animate-ping"></span> Live Now
+        </h2>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <% activeStreams.forEach(active => { %>
+                <div class="bg-black rounded-2xl overflow-hidden border border-blue-900 shadow-2xl">
+                    <video id="player-<%= active.key %>" class="w-full aspect-video" controls autoplay muted></video>
+                    <div class="p-4 bg-gray-800 flex justify-between items-center">
+                        <div>
+                            <p class="text-sm font-bold text-blue-400">Streaming: <%= active.key %></p>
+                            <p class="text-[10px] text-gray-400">Protokol: HLS (Adaptive)</p>
+                        </div>
+                        <a href="<%= active.hls %>" target="_blank" class="text-xs bg-blue-600 px-4 py-2 rounded-full">Buka Link HLS</a>
+                    </div>
+                </div>
+                <script>
+                    if (Hls.isSupported()) {
+                        var video = document.getElementById('player-<%= active.key %>');
+                        var hls = new Hls();
+                        hls.loadSource('<%= active.hls %>');
+                        hls.attachMedia(video);
+                    }
+                </script>
+            <% }) %>
+        </div>
+    </section>
+</div>
+
+<script>
+    function copy(id) {
+        var inp = document.getElementById(id);
+        inp.type = "text";
+        inp.select();
+        document.execCommand("copy");
+        if(id.includes('key')) inp.type = "password";
+        alert("Disalin!");
+    }
+    function toggleKey(id) {
+        var inp = document.getElementById(id);
+        inp.type = (inp.type === "password") ? "text" : "password";
+    }
+    lucide.createIcons();
+</script>
