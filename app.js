@@ -9,6 +9,8 @@ if (!fs.existsSync(dbDir)) {
 
 require('./services/logger.js');
 const express = require('express');
+const NodeMediaServer = require('node-media-server');
+const crypto = require('crypto');
 const engine = require('ejs-mate');
 const os = require('os');
 const multer = require('multer');
@@ -48,6 +50,36 @@ process.on('uncaughtException', (error) => {
   console.error('-----------------------------------');
 });
 const app = express();
+// Konfigurasi Mesin Streaming
+const nmsConfig = {
+  rtmp: { port: 1935, chunk_size: 60000, gop_cache: true, ping: 30, ping_timeout: 60 },
+  http: { port: 8000, mediaroot: './public', allow_origin: '*' },
+  trans: {
+    ffmpeg: '/usr/bin/ffmpeg',
+    tasks: [{
+      app: 'live', hls: true,
+      hlsFlags: '[hls_time=2:hls_list_size=3:hls_flags=delete_segments]',
+      hlsKeep: false
+    }]
+  }
+};
+const nms = new NodeMediaServer(nmsConfig);
+nms.run();
+
+// Variabel Global agar bisa dibaca di Dashboard
+global.activeStreams = [];
+global.createdStreams = [];
+
+// Event Listener untuk mendeteksi siapa yang sedang Live
+nms.on('postPublish', (id, StreamPath) => {
+  if (StreamPath.startsWith('/live/')) {
+    const key = StreamPath.split('/').pop();
+    global.activeStreams.push({ id, key });
+  }
+});
+nms.on('donePublish', (id) => {
+  global.activeStreams = global.activeStreams.filter(s => s.id !== id);
+});
 app.set("trust proxy", 1);
 const port = process.env.PORT || 7575;
 const tokens = new csrf();
@@ -176,91 +208,6 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-const express = require('express');
-const path = require('path');
-const NodeMediaServer = require('node-media-server');
-const crypto = require('crypto');
-
-const app = express();
-const port = 7575;
-
-// --- 1. KONFIGURASI NODE MEDIA SERVER (RTMP & HLS) ---
-const nmsConfig = {
-  rtmp: {
-    port: 1935,
-    chunk_size: 60000,
-    gop_cache: true,
-    ping: 30,
-    ping_timeout: 60
-  },
-  http: {
-    port: 8000,
-    mediaroot: './public', // Folder penyimpanan output HLS
-    allow_origin: '*'
-  },
-  trans: {
-    ffmpeg: '/usr/bin/ffmpeg', // Path FFmpeg di Linux (Wajib terinstall)
-    tasks: [
-      {
-        app: 'live',
-        hls: true,
-        hlsFlags: '[hls_time=2:hls_list_size=3:hls_flags=delete_segments]',
-        hlsKeep: false
-      }
-    ]
-  }
-};
-
-const nms = new NodeMediaServer(nmsConfig);
-nms.run();
-
-// --- 2. DATABASE SEDERHANA (VARIABEL GLOBAL) ---
-global.createdStreams = [];
-global.activeStreams = [];
-
-// --- 3. MIDDLEWARE & VIEW ENGINE ---
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.urlencoded({ extended: true }));
-
-// --- 4. ROUTES ---
-
-// Halaman Utama (Welcome Dashboard)
-app.get('/', (req, res) => {
-  res.render('welcome', { 
-    createdStreams: global.createdStreams, 
-    activeStreams: global.activeStreams,
-    serverIp: req.hostname 
-  });
-});
-
-// Generate Stream Key Baru
-app.post('/generate-stream', (req, res) => {
-  const key = crypto.randomBytes(4).toString('hex');
-  global.createdStreams.push({
-    key: key,
-    createdAt: new Date().toLocaleString()
-  });
-  res.redirect('/');
-});
-
-// --- 5. EVENT LISTENERS (SINKRONISASI REAL-TIME) ---
-nms.on('postPublish', (id, StreamPath, args) => {
-  if (StreamPath.startsWith('/live/')) {
-    const key = StreamPath.split('/').pop();
-    global.activeStreams.push({ id, key });
-  }
-});
-
-nms.on('donePublish', (id) => {
-  global.activeStreams = global.activeStreams.filter(s => s.id !== id);
-});
-
-// --- 6. RUN SERVER ---
-app.listen(port, () => {
-  console.log(`Streamflow berjalan di http://localhost:${port}`);
-});
 app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Service-Worker-Allowed', '/');
@@ -755,39 +702,21 @@ app.get('/welcome/continue', isAuthenticated, async (req, res) => {
 });
 app.get('/dashboard', isAuthenticated, async (req, res) => {
   try {
-    const user = await User.findById(req.session.userId);
-    if (!user) {
-      req.session.destroy();
-      return res.redirect('/login');
-    }
-    const YoutubeChannel = require('./models/YoutubeChannel');
-    const youtubeChannels = await YoutubeChannel.findAll(req.session.userId);
-    const hasYoutubeCredentials = !!(user.youtube_client_id && user.youtube_client_secret);
-    const isYoutubeConnected = youtubeChannels.length > 0;
-    const defaultChannel = youtubeChannels.find(c => c.is_default) || youtubeChannels[0];
+    const usersExist = await checkIfUsersExist();
     
-    const initialStreamsData = await Stream.findAllPaginated(req.session.userId, {
-      page: 1,
-      limit: 10,
-      search: ''
-    });
-    
+    // PASTE / TAMBAHKAN BAGIAN INI:
     res.render('dashboard', {
+      user: req.session.user,
+      currentPage: 'dashboard',
       title: 'Dashboard',
-      active: 'dashboard',
-      user: user,
-      youtubeConnected: isYoutubeConnected,
-      youtubeChannels: youtubeChannels,
-      youtubeChannelName: defaultChannel?.channel_name || '',
-      youtubeChannelThumbnail: defaultChannel?.channel_thumbnail || '',
-      youtubeSubscriberCount: defaultChannel?.subscriber_count || '0',
-      hasYoutubeCredentials: hasYoutubeCredentials,
-      initialStreams: JSON.stringify(initialStreamsData.streams),
-      initialPagination: JSON.stringify(initialStreamsData.pagination)
+      activeStreams: global.activeStreams || [],   // Data stream yang sedang Live
+      createdStreams: global.createdStreams || [], // Data history Key yang dibuat
+      serverIp: req.hostname                       // IP VPS Anda
     });
+    
   } catch (error) {
     console.error('Dashboard error:', error);
-    res.redirect('/login');
+    res.status(500).send('Internal Server Error');
   }
 });
 app.get('/gallery', isAuthenticated, async (req, res) => {
